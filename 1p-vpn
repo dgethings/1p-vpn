@@ -3,19 +3,24 @@
 up_file=$(mktemp)
 otp_file=$(mktemp)
 openvpn="$(brew --prefix openvpn)/sbin/openvpn"
+title="My VPN"
 
-if [[ ! $(op get item "$1") ]]; then
+if [[ ! $(op get item "$title") ]]; then
   eval "$(op signin)"
 fi;
-user=$(op get item "$1" | jq -r ".details.fields[0].value")
+item=$(op get item "$title")
+
+user=$(echo "$item" | jq -r ".details.fields | .[] | select(.designation == \"username\") | .value")
+password=$(echo "$item" | jq -r ".details.fields | .[] | select(.designation == \"password\") | .value")
+vpn_config=$(echo "$item" | jq -r ".details.sections | .[] | select(.title==\"OP-VPN\") | .fields[] | select(.t==\"config\") | .v")
 
 echo "$user" > "$up_file"
-op get item "$1" | jq -r ".details.fields[1].value" >> "$up_file"
+echo "$password" >> "$up_file"
 
-get_session_id=$(sudo "$openvpn" --config ~/.config/vpn/tips-lab.conf --auth-user-pass "$up_file" | grep AUTH_FAILED)
+get_session_id=$(sudo "$openvpn" --config "$vpn_config" --auth-user-pass "$up_file" | grep AUTH_FAILED)
 
 session_id=$(echo "$get_session_id" | cut -d':' -f7)
-otp=$(op get totp "$1")
+otp=$(op get totp "$title")
 
 echo "$user" > "$otp_file"
 echo "CRV1::$session_id::$otp" >> "$otp_file"
@@ -23,7 +28,7 @@ echo "CRV1::$session_id::$otp" >> "$otp_file"
 while read -r line; do
   [ -z "${line##*Initialization Sequence Completed*}" ] && break;
 done < <(sudo "$openvpn" \
-          --config ~/.config/vpn/tips-lab.conf \
+          --config "$vpn_config" \
           --auth-user-pass "$otp_file")
 
 rm -rf "$up_file"
