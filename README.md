@@ -20,6 +20,7 @@ This script is designed to work on MacOS. It has the following dependencies:
 
 - [brew](https://homebew.sh)
 - brew installed `openvpn` (use `brew install openvpn`)
+- 1Password's [CLI command](https://support.1password.com/command-line-getting-started/) `op`
 - [jq](https://stedolan.github.io/jq/)
 - Bash 5.0+ (MacOS comes with Bash 3.2 so you'll need to upgrade it)
 - GNUsed (`brew install gnu-sed`) because OSX's `sed` is rubbish
