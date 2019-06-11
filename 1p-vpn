@@ -3,7 +3,7 @@
 up_file=$(mktemp)
 otp_file=$(mktemp)
 openvpn="$(brew --prefix openvpn)/sbin/openvpn"
-title="My VPN"
+title=$1
 
 if [[ ! $(op get item "$title") ]]; then
   eval "$(op signin)"
