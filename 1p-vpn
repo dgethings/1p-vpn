@@ -65,7 +65,7 @@ function connect() {
 }
 
 function disconnect() {
-  sudo pkill -f "sudo $(brew --prefix openvpn)"
+  sudo pkill -f "$(brew --prefix openvpn)"
   sudo networksetup -setdnsservers Wi-Fi empty
 }
 
