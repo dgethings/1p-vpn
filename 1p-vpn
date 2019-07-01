@@ -1,57 +1,87 @@
 #!/usr/local/bin/bash
 
-# setup
-# create temp files for auth
-up_file=$(mktemp)
-otp_file=$(mktemp)
-# set full path to openvpn client
-openvpn="$(brew --prefix openvpn)/sbin/openvpn"
-# save requested VPN in sensible var name
-title=$1
+set -o errexit -o pipefail -o nounset
 
-# check to see if `op` is already authed. If not then signin
-# there is no "status" check. Have to do query and check return code
-if [[ ! $(op get item "$title") ]]; then
-  eval "$(op signin)"
-fi;
-# get the full "blob" back from 1Password and save it
-item=$(op get item "$title")
+function connect() {
+  # setup
+  # create temp files for auth
+  up_file=$(mktemp)
+  otp_file=$(mktemp)
+  # set full path to openvpn client
+  openvpn="$(brew --prefix openvpn)/sbin/openvpn"
+  # save requested VPN in sensible var name
+  title=$1
 
-# extract fields from 1Password blob
-user=$(echo "$item" | jq -r ".details.fields | .[] | select(.designation == \"username\") | .value")
-password=$(echo "$item" | jq -r ".details.fields | .[] | select(.designation == \"password\") | .value")
-vpn_config=$(echo "$item" | jq -r ".details.sections | .[] | select(.title==\"OP-VPN\") | .fields[] | select(.t==\"config\") | .v")
+  # check to see if `op` is already authed. If not then signin
+  # there is no "status" check. Have to do query and check return code
+  if [[ ! $(op get item "$title") ]]; then
+    eval "$(op signin)"
+  fi;
+  # get the full "blob" back from 1Password and save it
+  item=$(op get item "$title")
 
-# write auth file
-echo "$user" > "$up_file"
-echo "$password" >> "$up_file"
+  # extract fields from 1Password blob
+  user=$(echo "$item" | jq -r ".details.fields | .[] | select(.designation == \"username\") | .value")
+  password=$(echo "$item" | jq -r ".details.fields | .[] | select(.designation == \"password\") | .value")
+  vpn_config=$(echo "$item" | jq -r ".details.sections | .[] | select(.title==\"OP-VPN\") | .fields[] | select(.t==\"config\") | .v")
 
-# initial login will fail. The "AUTH_FAILED" line contains the session_id
-# to be used with OTP based auth
-get_session_id=$(sudo "$openvpn" --config "$vpn_config" --auth-user-pass "$up_file" | grep AUTH_FAILED)
+  # write auth file
+  echo "$user" > "$up_file"
+  echo "$password" >> "$up_file"
 
-# extract session_id and get OTP from 1Password
-session_id=$(echo "$get_session_id" | cut -d':' -f7)
-otp=$(op get totp "$title")
+  # initial login will fail. The "AUTH_FAILED" line contains the session_id
+  # to be used with OTP based auth
+  get_session_id=$(sudo "$openvpn" --config "$vpn_config" --auth-user-pass "$up_file" | grep AUTH_FAILED)
 
-# write auth file
-echo "$user" > "$otp_file"
-echo "CRV1::$session_id::$otp" >> "$otp_file"
+  # extract session_id and get OTP from 1Password
+  session_id=$(echo "$get_session_id" | cut -d':' -f7)
+  otp=$(op get totp "$title")
 
-# do final login and wait until login is complete (can take a few seconds)
-# before progressing
-while read -r line; do
-  if [ -z "${line##*dhcp-option DNS*}" ]; then
-    echo "$line"
-  fi
-  [ -z "${line##*Initialization Sequence Completed*}" ] && break;
-done < <(sudo "$openvpn" \
-          --config "$vpn_config" \
-          --auth-user-pass "$otp_file")
+  # write auth file
+  echo "$user" > "$otp_file"
+  echo "CRV1::$session_id::$otp" >> "$otp_file"
 
-# delete temp auth files
-rm -rf "$up_file"
-rm -rf "$otp_file"
-echo
+  # this while loop does a lot. So let's explain it
+  # the while loop iterates over the output from the `openvpn` call on line 55
+  # first it finds the line that contains the DNS resolver for that VPN and
+  # saves it to $resolver
+  # Once the VPN is up (it sees "Sequence Completed") it then configured DNS
+  # to use the VPN resolver and exits the loop
+  while read -r line; do
+    if [ -z "${line##*dhcp-option DNS*}" ]; then
+      resolver=$(echo "$line" | perl -lne 'print $1 if /^.*dhcp-option DNS ([^,]+),.*$/')
+    fi
+    if [ -z "${line##*Initialization Sequence Completed*}" ]; then
+      sudo networksetup -setdnsservers Wi-Fi "$resolver"
+      break
+    fi
+  done < <(sudo "$openvpn" --config "$vpn_config" --auth-user-pass "$otp_file")
 
-# sudo pkill -f "sudo $(brew --prefix openvpn)"
+  # delete temp auth files
+  rm -rf "$up_file"
+  rm -rf "$otp_file"
+  # force a new line to ensure the prompt is returned to the user
+  echo
+}
+
+function disconnect() {
+  sudo pkill -f "sudo $(brew --prefix openvpn)"
+  sudo networksetup -setdnsservers Wi-Fi empty
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    connect)
+      connect "$2"
+      shift 2
+      ;;
+    disconnect)
+      disconnect
+      shift
+      ;;
+    *)
+      echo "unrecognised option"
+      exit 1
+      ;;
+  esac
+done
