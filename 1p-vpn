@@ -14,7 +14,7 @@ function connect() {
 
   # check to see if `op` is already authed. If not then signin
   # there is no "status" check. Have to do query and check return code
-  if [[ ! $(op get item "$title") ]]; then
+  if [[ ! $(op get account) ]]; then
     eval "$(op signin)"
   fi;
   # get the full "blob" back from 1Password and save it
@@ -42,7 +42,7 @@ function connect() {
   echo "CRV1::$session_id::$otp" >> "$otp_file"
 
   # this while loop does a lot. So let's explain it
-  # the while loop iterates over the output from the `openvpn` call on line 55
+  # the while loop iterates over the output from the `openvpn` call on line 58
   # first it finds the line that contains the DNS resolver for that VPN and
   # saves it to $resolver
   # Once the VPN is up (it sees "Sequence Completed") it then configured DNS
