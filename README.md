@@ -4,15 +4,15 @@
 
 ## Usage
 
-To establish a VPN tunnel call the `1p-vpn` script with name of the 1Password login that has the VPN credentials.
+To establish a VPN tunnel call the `1p-vpn connect` with name of the 1Password login that has the VPN credentials.
 
 ```bash
-$ 1p-vpn "My VPN"
+1p-vpn connect "My VPN"
 ```
 
-If a `op` session does not already exist it will ask for your 1Password master password. To create the VPN tunnel the script needs root privileges so will ask for your login password too.
+To disconnect just call `1p-vpn disconnect`.
 
-To kill the VPN issue `sudo pkill -f "sudo $(brew --prefix openvpn)"`
+If a `op` session does not already exist it will ask for your 1Password master password. To create the VPN tunnel the script needs root privileges so will ask for your login password too.
 
 ## Requirements
 
@@ -38,7 +38,7 @@ Second, the VPN config file must downloaded and stored locally. It's location mu
 The VPN config requires a modification to disable the interactice OTP challenge. This is done with this command:
 
 ```bash
-$ gsed -i 's/static-challenge/\# static-challenge/g' /path/to/vpn.conf
+gsed -i 's/static-challenge/\# static-challenge/g' /path/to/vpn.conf
 ```
 
 Move the script to some location in your `$PATH`.
@@ -82,4 +82,4 @@ The `ifconfig` error can be ignored.
 
 Your system is now connected to the VPN!
 
-To disconnect run `sudo pkill -f "sudo $(brew --prefix openvpn)"`
+To disconnect run `1p-vpn disconnect`.
