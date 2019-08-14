@@ -53,6 +53,7 @@ function connect() {
     fi
     if [ -z "${line##*Initialization Sequence Completed*}" ]; then
       sudo networksetup -setdnsservers Wi-Fi "$resolver"
+      echo "Connected to ${title}"
       break
     fi
   done < <(sudo "$openvpn" --config "$vpn_config" --auth-user-pass "$otp_file")
